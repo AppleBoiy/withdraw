@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import 'tldraw/tldraw.css'
+import '@excalidraw/excalidraw/index.css'
 import './styles.css'
 import App from './App'
 

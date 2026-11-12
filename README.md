@@ -1,19 +1,24 @@
 # Explainboard
 
-A whiteboard for explaining technical work: hand-drawn canvas (tldraw) + text→diagram + slide-style presentation.
+A hand-drawn whiteboard for explaining technical work — knowledge-graph pipelines,
+system architecture, data flow between services, deployment plans — built on
+[Excalidraw](https://github.com/excalidraw/excalidraw) (MIT), styled in washi paper,
+sumi ink and shu red.
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
+npm run dev        # copies Excalidraw's fonts into public/, then http://localhost:5173
 ```
 
 ## Features
 
-- **Infinite canvas** — everything tldraw does (draw, shapes, arrows, frames, images, Apple Pencil on iPad Safari). Boards auto-save in the browser (IndexedDB).
-- **Text → diagram** (top-right button) — write a small text description, it is auto-laid-out (ELK) and added as editable shapes. Examples included: knowledge-graph extraction, chatbot architecture, deployment plan.
-- **Present** — each top-level frame (press `F` to draw one) is a slide, ordered by rows then left→right. `→`/`Space` next, `←` back, `D` toggle flow, `Esc` exit.
-- **Step-by-step reveal** — any shape can have a reveal step. Select shapes and use **Step − / +** (top right); purple badges show the step. Select a frame and press **Auto** to reveal its contents in arrow order (sources first, one hop per click). While presenting, `→` reveals the next step before moving to the next slide.
-- **Animated data flow** — the **Flow** toggle sends dots along every visible arrow (start → end; both ways for `<->`; hollow and slower for dashed/async arrows).
+- **Hand-drawn canvas** — everything Excalidraw does: shapes, arrows, frames (`F`), images, Apple Pencil on iPad, export to PNG/SVG/.excalidraw. Boards auto-save in the browser (IndexedDB).
+- **Icon gallery** (top-right **◎ icons**) — ~5,000 searchable icons: Lucide system icons (server, database, bot, queue…) and Simple Icons brand logos (Postgres, Kafka, Docker, Kubernetes, Neo4j…). Click to drop one in the middle of the screen, with an optional caption, in brand colors or ink. Recent icons are remembered.
+- **Shape libraries** — Excalidraw's Library panel → *Browse libraries* installs community packs (AWS, GCP, Azure, K8s, system-design…). They're kept in the browser too.
+- **Text → diagram** — describe a diagram in a few lines; it's auto-laid-out (ELK) as editable shapes inside frames.
+- **Present** — each frame is a slide, ordered by rows then left→right. `→`/`Space` next, `←` back, `D` toggle flow, `Esc` exit.
+- **Step-by-step reveal** — select elements and use **step − / +**; red badges show the step. Select a frame and press **auto** to reveal its contents in arrow order. While presenting, `→` reveals the next step before moving to the next slide.
+- **Animated data flow** — **≋ flow** sends dots along every visible arrow (both ways for two-headed arrows; hollow and slower for dashed/async ones).
 
 ## Diagram syntax
 
@@ -24,24 +29,22 @@ A -> B -> C               chain of edges
 A -> B: label             labelled edge
 A <-> B                   two-way edge
 A ..> B                   dashed edge (async, optional, …)
----                       next reveal step: what follows appears on the next click
 Postgres: db              node kind: service, db, queue, llm, user, external, decision, data, entity
-Postgres: db red          …plus an optional color
+Postgres: db green        …plus a color: ink grey red orange yellow green blue indigo violet
+Postgres: db icon:postgresql   …plus any icon from the gallery (hover an icon to see its name)
 API: Public REST API      anything else after ":" becomes the display label
+---                       next reveal step: what follows appears on the next click
 # comment
 ```
 
-## License note
+## Credits & licenses
 
-tldraw is free in development; deploying publicly needs a tldraw license key
-(a free hobby/non-commercial one exists — check tldraw.dev for current terms).
-Put it in `.env.local` as `VITE_TLDRAW_LICENSE_KEY=...`.
+- [Excalidraw](https://github.com/excalidraw/excalidraw) — MIT
+- [Lucide](https://lucide.dev) icons — ISC
+- [Simple Icons](https://simpleicons.org) — CC0; the logos themselves remain trademarks of their owners
+- [ELK](https://eclipse.dev/elk/) via elkjs — EPL-2.0
 
 ## Roadmap
 
 - Paste JSON triples → knowledge graph
-- Cloud provider icons for deployment diagrams
-- Read-only share link, PDF export
-- Cloud/infra icon shape pack (AWS, GCP, K8s)
-- Import knowledge-graph triples from CSV/JSON
-- Mermaid import, export to PNG/PDF, share links
+- Read-only share link, PDF export of the slides

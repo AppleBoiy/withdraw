@@ -4,15 +4,20 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "fonts": "mkdir -p public && rm -rf public/fonts && cp -R node_modules/@excalidraw/excalidraw/dist/prod/fonts public/fonts",
+    "predev": "npm run fonts",
+    "prebuild": "npm run fonts",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
     "elkjs": "^0.12.1",
+    "lucide-static": "^1.59.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "tldraw": "^5.6.0"
+    "simple-icons": "^16.35.0"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

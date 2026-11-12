@@ -1,200 +1,1356 @@
+/* ------------------------------------------------------------------
+   Explainboard — washi paper, sumi ink, shu (朱) red.
+   Hand-drawn canvas from Excalidraw, quiet chrome around it.
+------------------------------------------------------------------- */
+
+:root {
+  --eb-paper: #f4ecdd;
+  --eb-paper-2: #fbf6ec;
+  --eb-paper-3: #ebe1cd;
+  --eb-line: #d8cab0;
+  --eb-ink: #231b14;
+  --eb-ink-2: #3b3026;
+  --eb-muted: #6f6354;
+  --eb-faint: #a39581;
+  --eb-shu: #c2361f;
+  --eb-shu-2: #a82d18;
+  --eb-shu-tint: #f6dcd3;
+  --eb-shadow: 0 1px 2px rgb(58 47 36 / 0.1), 0 4px 14px rgb(58 47 36 / 0.08);
+  --eb-shadow-lift: 0 2px 4px rgb(58 47 36 / 0.14), 0 10px 30px rgb(58 47 36 / 0.16);
+  --eb-sans: 'Geist', 'Noto Sans Thai', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --eb-serif: 'Cormorant Garamond', 'EB Garamond', Georgia, serif;
+  --eb-jp: 'Shippori Mincho', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  --eb-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --eb-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .22 0 0 0 0 .12 0 0 0 .10 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --eb-paper: #1d1914;
+  --eb-paper-2: #27211b;
+  --eb-paper-3: #322a22;
+  --eb-line: #43382d;
+  --eb-ink: #ede2cc;
+  --eb-ink-2: #d9ccb3;
+  --eb-muted: #a69780;
+  --eb-faint: #74675a;
+  --eb-shu: #e0573b;
+  --eb-shu-2: #f06e52;
+  --eb-shu-tint: #4a261d;
+  --eb-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  --eb-shadow-lift: 0 6px 24px rgb(0 0 0 / 0.55);
+  color-scheme: dark;
+}
+
 html,
-body {
+body,
+#root {
   margin: 0;
+  height: 100%;
   overscroll-behavior: none;
+  background: var(--eb-paper);
+  color: var(--eb-ink);
+  font-family: var(--eb-sans);
 }
 
-.eb-panel {
+.eb-root {
+  position: fixed;
+  inset: 0;
+}
+
+/* Paper grain over everything; multiply keeps it subtle on the canvas. */
+.eb-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--eb-grain);
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+  z-index: 5;
+}
+:root[data-theme='dark'] .eb-grain {
+  mix-blend-mode: screen;
+  opacity: 0.18;
+}
+
+/* ---------- Excalidraw theme ---------- */
+
+/* Listed with .theme--dark too so Excalidraw's own dark palette doesn't win on specificity. */
+.excalidraw,
+.excalidraw.theme--dark {
+  --ui-font: var(--eb-sans);
+  --color-primary: var(--eb-shu);
+  --color-primary-darker: var(--eb-shu-2);
+  --color-primary-darkest: #8e2412;
+  --color-primary-hover: var(--eb-shu-2);
+  --color-primary-light: var(--eb-shu-tint);
+  --color-primary-light-darker: #efc6b8;
+  --color-brand-hover: var(--eb-shu-2);
+  --color-brand-active: #8e2412;
+  --color-selection: var(--eb-shu);
+  --color-surface-lowest: var(--eb-paper-2);
+  --color-surface-low: var(--eb-paper-3);
+  --color-surface-mid: var(--eb-paper-3);
+  --color-surface-high: #e3d6be;
+  --color-surface-primary-container: var(--eb-shu-tint);
+  --color-on-primary-container: var(--eb-shu-2);
+  --color-on-surface: var(--eb-ink);
+  --color-border-outline: var(--eb-muted);
+  --color-border-outline-variant: var(--eb-line);
+  --color-muted: var(--eb-faint);
+  --color-muted-darker: var(--eb-muted);
+  --color-muted-darkest: var(--eb-ink-2);
+  --color-muted-background: var(--eb-paper-3);
+  --color-logo-text: var(--eb-ink);
+  --island-bg-color: color-mix(in srgb, var(--eb-paper-2) 94%, transparent);
+  --default-bg-color: var(--eb-paper);
+  --input-bg-color: var(--eb-paper-2);
+  --input-border-color: var(--eb-line);
+  --input-hover-bg-color: var(--eb-paper-3);
+  --popup-bg-color: var(--eb-paper-2);
+  --popup-text-color: var(--eb-ink);
+  --button-gray-1: var(--eb-paper-3);
+  --button-gray-2: #e3d6be;
+  --button-gray-3: var(--eb-line);
+  --button-hover-bg: var(--eb-paper-3);
+  --button-active-bg: var(--eb-shu-tint);
+  --icon-fill-color: var(--eb-ink-2);
+  --text-primary-color: var(--eb-ink);
+  --link-color: var(--eb-shu);
+  --focus-highlight-color: var(--eb-shu-tint);
+  --select-highlight-color: var(--eb-shu);
+  --shadow-island: var(--eb-shadow);
+  --modal-shadow: var(--eb-shadow-lift);
+  --dialog-border-color: var(--eb-line);
+  --overlay-bg-color: rgb(35 27 20 / 0.35);
+  --sidebar-bg-color: var(--eb-paper-2);
+  --sidebar-border-color: var(--eb-line);
+}
+
+.excalidraw.theme--dark {
+  --color-primary-darkest: #ff8b70;
+  --color-primary-light-darker: #5a2d22;
+  --color-surface-high: #3d3329;
+  --button-gray-2: #3d3329;
+  --overlay-bg-color: rgb(0 0 0 / 0.5);
+}
+
+.excalidraw .Island {
+  border: 1px solid var(--eb-line);
+  backdrop-filter: blur(6px);
+}
+
+.excalidraw .welcome-screen-center__heading,
+.excalidraw .welcome-screen-decor {
+  font-family: var(--eb-serif) !important;
+  color: var(--eb-muted) !important;
+}
+
+/* ---------- action dock (bottom-right, next to help) ----------
+   Secondary to the drawing toolbar, so it is one quiet island of small buttons,
+   the same height as the zoom controls; only "present" is filled. */
+
+.eb-dock {
+  position: absolute;
+  right: 56px;
+  bottom: 16px;
+  z-index: 6;
   display: flex;
+  align-items: center;
   gap: 6px;
-  padding: 6px;
-  pointer-events: all;
+  transition: right 200ms ease;
+}
+/* An open (overlay or docked) sidebar covers the right edge: move left of it. */
+.eb-root:has(.excalidraw .sidebar) .eb-dock:not(.eb-dock-phone) {
+  right: 306px; /* sidebar is ~294px wide */
+}
+.eb-dock-phone {
+  right: 12px;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 24px);
 }
 
-.eb-panel button,
-.eb-modal button,
+.eb-ico {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.eb-pill {
+  box-sizing: border-box;
+  font: 500 13px/1 var(--eb-sans);
+  letter-spacing: 0.01em;
+  height: 36px;
+  min-width: 36px;
+  padding: 0 14px 0 12px;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--eb-line);
+  background: var(--eb-paper-2);
+  color: var(--eb-ink);
+  cursor: pointer;
+  box-shadow: var(--eb-shadow);
+  transition: background 120ms, border-color 120ms, transform 120ms;
+  white-space: nowrap;
+}
+.eb-pill:hover {
+  background: var(--eb-paper-3);
+}
+.eb-pill:active {
+  transform: translateY(1px);
+}
+.eb-pill:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.eb-pill.eb-on {
+  border-color: var(--eb-shu);
+  background: var(--eb-shu-tint);
+  color: var(--eb-shu-2);
+}
+.eb-pill.eb-primary {
+  border-color: transparent;
+  background: var(--eb-shu);
+  color: #fff8ef;
+}
+.eb-pill.eb-primary:hover {
+  background: var(--eb-shu-2);
+}
+.eb-pill .eb-ico {
+  color: var(--eb-shu);
+}
+.eb-pill.eb-primary .eb-ico {
+  color: inherit;
+}
+
+.eb-steps {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--eb-shu);
+  background: var(--eb-paper-2);
+  color: var(--eb-ink);
+  font: 500 13px var(--eb-sans);
+  box-shadow: var(--eb-shadow);
+}
+.eb-steps-label {
+  color: var(--eb-shu);
+  margin-right: 4px;
+}
+.eb-steps b {
+  min-width: 16px;
+  text-align: center;
+  font-family: var(--eb-mono);
+}
+.eb-steps button {
+  font: inherit;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 999px;
+}
+.eb-steps button:hover:not(:disabled) {
+  background: var(--eb-paper-3);
+}
+.eb-steps button:disabled {
+  opacity: 0.35;
+}
+.eb-steps .eb-steps-auto {
+  padding: 0 10px;
+  color: var(--eb-shu);
+}
+
+/* Excalidraw's own buttons — menu, zoom, undo/redo, help, toolbar — in the same
+   paper-pill language as the dock. */
+.excalidraw .dropdown-menu-button,
+.excalidraw .help-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--eb-paper-2);
+  border: 1px solid var(--eb-line);
+  box-shadow: var(--eb-shadow);
+  color: var(--eb-ink-2);
+}
+.excalidraw .dropdown-menu-button:hover,
+.excalidraw .help-icon:hover {
+  background: var(--eb-paper-3);
+}
+.excalidraw .zoom-actions,
+.excalidraw .undo-redo-buttons {
+  --color-surface-low: transparent; /* Excalidraw paints these buttons with it, !important */
+  border-radius: 999px;
+  background: var(--eb-paper-2);
+  border: 1px solid var(--eb-line);
+  box-shadow: var(--eb-shadow);
+  overflow: hidden;
+}
+.excalidraw .zoom-actions .ToolIcon,
+.excalidraw .zoom-actions .ToolIcon_type_button,
+.excalidraw .undo-redo-buttons .ToolIcon,
+.excalidraw .undo-redo-buttons .ToolIcon_type_button {
+  background: transparent;
+  border-radius: 999px;
+}
+.excalidraw .zoom-actions .ToolIcon_type_button:hover:not(:disabled),
+.excalidraw .undo-redo-buttons .ToolIcon_type_button:hover:not(:disabled) {
+  background-color: var(--eb-paper-3) !important;
+}
+.excalidraw .reset-zoom-button {
+  font-family: var(--eb-mono);
+  font-size: 12px;
+}
+.excalidraw .App-toolbar {
+  border-radius: 999px;
+  padding-inline: 8px;
+}
+.excalidraw .App-toolbar .ToolIcon__icon {
+  border-radius: 999px;
+}
+
+/* Excalidraw's own Library trigger is replaced by the matching "library" pill. */
+.excalidraw .layer-ui__wrapper__top-right .sidebar-trigger__label-element {
+  display: none;
+}
+
+/* ---------- overlay: flow dots + step badges ---------- */
+
+.eb-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+.eb-flow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.eb-step-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 600 11px/1 var(--eb-mono);
+  color: #fff8ef;
+  background: var(--eb-shu);
+  box-shadow: 0 0 0 2px var(--eb-paper-2), 0 1px 4px rgb(0 0 0 / 0.25);
+}
+
+/* ---------- presenting ---------- */
+
+.eb-presenting .excalidraw .layer-ui__wrapper__footer-left,
+.eb-presenting .excalidraw .layer-ui__wrapper__footer-right,
+.eb-presenting .excalidraw .App-menu_top {
+  display: none !important;
+}
+
+.eb-present-bar {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 999px;
+  border: 1px solid var(--eb-line);
+  background: color-mix(in srgb, var(--eb-paper-2) 92%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--eb-ink);
+  box-shadow: var(--eb-shadow-lift);
+  font: 500 13px var(--eb-sans);
+  opacity: 0.4;
+  transition: opacity 200ms;
+}
+.eb-present-bar:hover {
+  opacity: 1;
+}
 .eb-present-bar button {
   font: inherit;
-  font-size: 13px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--tl-color-muted-2, #ddd);
-  background: var(--tl-color-panel, #fff);
-  color: var(--tl-color-text, #111);
+  height: 32px;
+  min-width: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
   cursor: pointer;
 }
-
-.eb-panel button:hover,
-.eb-modal button:hover,
 .eb-present-bar button:hover:not(:disabled) {
-  filter: brightness(0.95);
+  background: var(--eb-paper-3);
+}
+.eb-present-bar button:disabled {
+  opacity: 0.3;
+}
+.eb-present-bar button.eb-on {
+  background: var(--eb-ink);
+  color: var(--eb-paper-2);
+}
+.eb-present-count {
+  padding: 0 8px;
+  font-family: var(--eb-serif);
+  font-size: 17px;
+}
+.eb-present-count > i {
+  color: var(--eb-shu);
+  font-style: normal;
+}
+.eb-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--eb-line);
+  margin: 0 4px;
+}
+.eb-step-dots {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+.eb-step-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--eb-faint);
+  opacity: 0.5;
+}
+.eb-step-dots i.on {
+  background: var(--eb-shu);
+  opacity: 1;
 }
 
-button.eb-primary {
-  background: var(--tl-color-primary, #2f80ed);
-  border-color: transparent;
-  color: #fff;
-}
+/* ---------- text → diagram dialog ---------- */
 
 .eb-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 20;
   display: grid;
   place-items: center;
-  background: rgb(0 0 0 / 0.35);
-  pointer-events: all;
+  background: rgb(35 27 20 / 0.32);
+  backdrop-filter: blur(2px);
 }
-
 .eb-modal {
-  width: min(720px, calc(100vw - 32px));
-  max-height: calc(100vh - 32px);
-  overflow: auto;
+  width: min(920px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
   box-sizing: border-box;
-  padding: 20px;
-  border-radius: 12px;
-  background: var(--tl-color-panel, #fff);
-  color: var(--tl-color-text, #111);
-  box-shadow: 0 10px 40px rgb(0 0 0 / 0.25);
+  border-radius: 18px;
+  border: 1px solid var(--eb-line);
+  background: var(--eb-paper-2) var(--eb-grain);
+  color: var(--eb-ink);
+  box-shadow: var(--eb-shadow-lift);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  overflow: hidden;
   font-size: 14px;
+  animation: eb-modal-in 160ms ease-out;
 }
-
+@keyframes eb-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+.eb-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px 22px 14px 26px;
+}
 .eb-modal h2 {
   margin: 0;
-  font-size: 18px;
+  font: 600 30px/1.05 var(--eb-serif);
 }
-
+.eb-modal-head p {
+  margin: 6px 0 0;
+  font: italic 500 16px var(--eb-serif);
+  color: var(--eb-muted);
+}
+.eb-modal-x {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--eb-muted);
+  font: 300 24px/1 var(--eb-sans);
+  cursor: pointer;
+}
+.eb-modal-x:hover {
+  background: var(--eb-paper-3);
+  color: var(--eb-ink);
+}
+/* the editor and the syntax, side by side; only this part scrolls when the window is short */
+.eb-modal-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 0 22px 0 26px;
+  overflow: auto;
+}
+.eb-shu {
+  color: var(--eb-shu);
+}
+.eb-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--eb-line);
+  border-radius: 12px;
+  background: var(--eb-paper);
+  overflow: hidden;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.eb-editor:focus-within {
+  border-color: var(--eb-shu);
+  box-shadow: 0 0 0 3px var(--eb-shu-tint);
+}
+.eb-editor-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 8px 7px 14px;
+  border-bottom: 1px solid var(--eb-line);
+  background: var(--eb-paper-3);
+  font: 600 11px var(--eb-sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eb-muted);
+}
+.eb-editor-bar label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  font: 12px var(--eb-sans);
+}
+.eb-modal select {
+  font: 12.5px var(--eb-sans);
+  color: var(--eb-ink);
+  background: var(--eb-paper-2);
+  border: 1px solid var(--eb-line);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
 .eb-modal textarea {
-  min-height: 280px;
-  resize: vertical;
-  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid var(--tl-color-muted-2, #ddd);
-  background: var(--tl-color-background, #fafafa);
-  color: inherit;
+  flex: 1;
+  min-height: 260px;
+  resize: none;
+  box-sizing: border-box;
+  border: 0;
+  padding: 14px 16px;
+  font: 13px/1.7 var(--eb-mono);
+  background: transparent;
+  color: var(--eb-ink);
+  outline: none;
+  tab-size: 2;
 }
-
-.eb-help {
+.eb-cheat {
+  min-height: 0;
+  padding: 2px 0 8px;
+}
+.eb-cheat h3 {
+  margin: 4px 0 8px;
+  font: 600 11px var(--eb-sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eb-muted);
+}
+.eb-cheat dl {
   margin: 0;
-  padding: 10px;
-  font-size: 12px;
-  white-space: pre-wrap;
-  border-radius: 8px;
-  background: var(--tl-color-muted-1, #f3f3f3);
-  color: var(--tl-color-text-1, #444);
+  display: flex;
+  flex-direction: column;
 }
-
+.eb-cheat dl > div {
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--eb-line);
+}
+.eb-cheat dl > div:last-child {
+  border-bottom: 0;
+}
+.eb-cheat dt {
+  margin: 0;
+}
+.eb-cheat code {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--eb-paper-3);
+  color: var(--eb-ink);
+  font: 12px/1.5 var(--eb-mono);
+}
+.eb-cheat dd {
+  margin: 3px 0 0;
+  font: 12.5px/1.45 var(--eb-sans);
+  color: var(--eb-muted);
+}
+.eb-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 22px 18px 26px;
+}
+.eb-keys {
+  margin: 0;
+  font: 12px var(--eb-sans);
+  color: var(--eb-faint);
+}
+.eb-keys kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--eb-line);
+  border-bottom-width: 2px;
+  background: var(--eb-paper);
+  color: var(--eb-muted);
+  font: 11px/1.4 var(--eb-sans);
+  text-align: center;
+}
+/* plain buttons for dialogs: text sized to fit, never squeezed into a circle */
+.eb-btn {
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid var(--eb-line);
+  background: var(--eb-paper-2);
+  color: var(--eb-ink);
+  font: 500 13.5px/1 var(--eb-sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.eb-btn:hover {
+  background: var(--eb-paper-3);
+}
+.eb-btn-primary {
+  border-color: transparent;
+  background: var(--eb-shu);
+  color: #fff8ef;
+  font-weight: 600;
+}
+.eb-btn-primary:hover {
+  background: var(--eb-shu-2);
+}
+.eb-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+@media (max-width: 720px) {
+  .eb-modal-body {
+    grid-template-columns: 1fr;
+    padding: 0 16px;
+  }
+  .eb-modal-head,
+  .eb-modal-foot {
+    padding-left: 18px;
+    padding-right: 16px;
+  }
+  .eb-modal textarea {
+    min-height: 200px;
+  }
+  .eb-keys,
+  .eb-editor-bar > span {
+    display: none;
+  }
+}
 .eb-error {
   margin: 0;
-  color: #d33;
+  color: var(--eb-shu);
 }
-
 .eb-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
 }
 
-.eb-present-bar {
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
+/* ---------- welcome ---------- */
+
+.eb-welcome {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: var(--tl-color-panel, #fff);
-  color: var(--tl-color-text, #111);
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.2);
-  pointer-events: all;
-  font-size: 14px;
-  opacity: 0.35;
-  transition: opacity 150ms;
-}
-
-.eb-present-bar:hover {
-  opacity: 1;
-}
-
-.eb-present-bar button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-button.eb-on {
-  background: var(--tl-color-selected, #2f80ed);
-  border-color: transparent;
-  color: #fff;
-}
-
-.eb-steps {
-  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 0 6px;
-  border-radius: 8px;
-  background: var(--tl-color-panel, #fff);
-  color: var(--tl-color-text, #111);
-  border: 1px solid var(--tl-color-muted-2, #ddd);
-  font-size: 13px;
-}
-
-.eb-steps button {
-  padding: 4px 8px !important;
-  border: none !important;
-}
-
-.eb-steps b {
-  min-width: 14px;
-  text-align: center;
-}
-
-.eb-step-badge {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font: 600 11px/1 system-ui, sans-serif;
-  color: #fff;
-  background: #7048e8;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  margin-bottom: 18px;
   pointer-events: none;
 }
-
-.eb-flow {
+/* the mark: a brush ensō with 説 inside, painted in when the welcome screen opens */
+.eb-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.eb-mark svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   overflow: visible;
-  pointer-events: none;
+}
+.eb-mark-ink {
+  fill: var(--eb-ink);
+}
+.eb-mark-dry {
+  fill: none;
+  stroke: var(--eb-paper);
+  stroke-width: 0.6;
+  stroke-linecap: round;
+  stroke-dasharray: 9 2 5 3 14 2;
+}
+.eb-mark-line {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 22;
+  stroke-linecap: round;
+  stroke-dasharray: 100 101;
+  stroke-dashoffset: 0;
+}
+/* the seal: 説 cut in a square red stamp, pressed below the end of the stroke */
+.eb-mark .eb-mark-seal {
+  position: absolute;
+  inset: auto;
+  right: 2%;
+  bottom: 4%;
+  width: 34%;
+  height: 34%;
+  transform: rotate(-5deg);
+}
+.eb-mark-seal-bg {
+  fill: var(--eb-shu);
+}
+.eb-mark-seal-k {
+  fill: #fff8ef;
+  font-family: var(--eb-jp);
+  font-weight: 700;
+  font-size: 27px;
+}
+.eb-mark-paint .eb-mark-line {
+  animation: eb-paint 1.1s cubic-bezier(0.55, 0.05, 0.3, 1) 0.15s both;
+}
+.eb-mark-paint .eb-mark-seal {
+  animation: eb-seal 0.42s cubic-bezier(0.3, 1.6, 0.5, 1) 1.15s both;
+}
+@keyframes eb-paint {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes eb-seal {
+  0% { opacity: 0; transform: scale(1.7) rotate(-16deg); }
+  60% { opacity: 1; transform: scale(0.93) rotate(-4deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-5deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eb-mark-paint .eb-mark-line,
+  .eb-mark-paint .eb-mark-seal { animation: none; }
+}
+.eb-welcome h1 {
+  margin: 14px 0 0;
+  font: 600 46px/1 var(--eb-serif);
+  letter-spacing: 0.005em;
+  color: var(--eb-ink);
+}
+.eb-welcome p {
+  margin: 6px 0 0;
+  font: italic 500 18px var(--eb-serif);
+  color: var(--eb-muted);
 }
 
-.eb-step-dots {
-  display: inline-flex;
+/* the welcome menu: real buttons, readable, each with its icon */
+.excalidraw .welcome-screen-menu {
   gap: 4px;
-  margin-left: 8px;
-  vertical-align: middle;
+}
+.excalidraw .welcome-screen-menu-item {
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  transition: background 120ms, border-color 120ms;
+}
+.excalidraw .welcome-screen-menu-item__text {
+  font: 500 14.5px var(--eb-sans);
+  color: var(--eb-ink-2);
+}
+.excalidraw .welcome-screen-menu-item__icon {
+  color: var(--eb-shu);
+}
+.excalidraw .welcome-screen-menu-item__icon svg,
+.excalidraw .welcome-screen-menu-item__icon .eb-ico {
+  width: 18px;
+  height: 18px;
+}
+.excalidraw .welcome-screen-menu-item__shortcut {
+  font: 12px var(--eb-mono);
+  color: var(--eb-faint);
+}
+.excalidraw .welcome-screen-menu-item:hover {
+  background: var(--eb-paper-2);
+  border-color: var(--eb-line);
+}
+.excalidraw .welcome-screen-menu-item:hover .welcome-screen-menu-item__text {
+  color: var(--eb-ink);
 }
 
-.eb-step-dots i {
-  width: 6px;
-  height: 6px;
+/* ---------- icon gallery ---------- */
+
+.excalidraw .eb-gallery {
+  font-family: var(--eb-sans);
+}
+.eb-gallery-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 22px var(--eb-serif);
+  color: var(--eb-ink);
+}
+.eb-hanko {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--eb-shu);
+  color: #fff8ef;
+  font: 700 13px var(--eb-jp);
+}
+.eb-gallery-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 6px 12px 16px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+.eb-gallery-body > * {
+  flex-shrink: 0; /* long result lists must scroll, not squash the search box */
+}
+.eb-search {
+  box-sizing: border-box;
+  font: 14px var(--eb-sans);
+  height: 40px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--eb-line);
+  background: var(--eb-paper);
+  color: var(--eb-ink);
+  outline: none;
+}
+.eb-search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  background: var(--eb-muted);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.eb-search::-webkit-search-cancel-button:hover {
+  background: var(--eb-shu);
+}
+.eb-search:focus {
+  border-color: var(--eb-shu);
+  box-shadow: 0 0 0 3px var(--eb-shu-tint);
+}
+.eb-chips {
+  display: flex;
+  gap: 6px;
+}
+.eb-chip {
+  font: 500 12px var(--eb-sans);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--eb-line);
+  background: none;
+  color: var(--eb-ink-2);
+  cursor: pointer;
+}
+.eb-chip.on {
+  background: var(--eb-ink);
+  border-color: var(--eb-ink);
+  color: var(--eb-paper-2);
+}
+.eb-toggles {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--eb-muted);
+}
+.eb-toggles label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.eb-toggles input {
+  accent-color: var(--eb-shu);
+}
+.eb-grid-section h4 {
+  margin: 6px 0 8px;
+  font: italic 500 15px var(--eb-serif);
+  color: var(--eb-muted);
+}
+.eb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 6px;
+}
+.eb-icon {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--eb-paper);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 120ms, transform 120ms;
+}
+.eb-icon:hover {
+  border-color: var(--eb-shu);
+  transform: translateY(-1px);
+}
+.eb-icon svg {
+  width: 26px;
+  height: 26px;
+}
+:root[data-theme='dark'] .eb-icon {
+  background: #efe6d4;
+}
+.eb-muted {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--eb-muted);
+}
+.eb-gallery-foot {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--eb-line);
+  font-size: 12px;
+  color: var(--eb-muted);
+}
+.eb-gallery-foot p {
+  margin: 0 0 4px;
+}
+.eb-link {
+  font: 500 12px var(--eb-sans);
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--eb-shu);
+  cursor: pointer;
+  text-align: left;
+}
+.eb-link:hover {
+  text-decoration: underline;
+}
+
+
+/* ---------- the explain tools island ---------- */
+.eb-tools {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 30px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--eb-line);
+  background: color-mix(in srgb, var(--eb-paper-2) 94%, transparent);
+  box-shadow: var(--eb-shadow);
+  backdrop-filter: blur(6px);
+}
+.eb-tool {
+  position: relative;
+  box-sizing: border-box;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--eb-ink-2);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.eb-tool .eb-ico {
+  width: 14px;
+  height: 14px;
+}
+.eb-tool:hover {
+  background: var(--eb-paper-3);
+  color: var(--eb-ink);
+}
+.eb-tool:focus-visible {
+  outline: 2px solid var(--eb-shu);
+  outline-offset: 1px;
+}
+.eb-tool.eb-on {
+  background: var(--eb-shu-tint);
+  color: var(--eb-shu-2);
+}
+.eb-tools-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: var(--eb-line);
+}
+.eb-tool-present {
+  display: inline-flex;
+  gap: 5px;
+  padding: 0 9px 0 7px;
+  background: var(--eb-shu);
+  color: #fff8ef;
+  font: 600 11.5px/1 var(--eb-sans);
+  letter-spacing: 0.02em;
+}
+.eb-tool-present .eb-ico {
+  width: 10px;
+  height: 10px;
+}
+.eb-tool-present:hover {
+  background: var(--eb-shu-2);
+  color: #fff8ef;
+}
+.eb-dock-phone .eb-tool-present span {
+  display: none;
+}
+.eb-dock-phone .eb-tool-present {
+  padding: 0;
+  width: 24px;
+  justify-content: center;
+}
+
+/* hover: the tool's name and what it does, above it */
+.eb-tool[data-tip]::after {
+  content: attr(data-tip) "\A" attr(data-does);
+  white-space: pre;
+  position: absolute;
+  right: 50%;
+  bottom: calc(100% + 10px);
+  transform: translate(50%, 4px);
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: var(--eb-ink);
+  color: var(--eb-paper-2);
+  font: 500 12px/1.45 var(--eb-sans);
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms, transform 120ms;
+  z-index: 10;
+}
+.eb-tool:last-child[data-tip]::after {
+  right: 0;
+  transform: translate(0, 4px);
+}
+.eb-tool[data-tip]:hover::after,
+.eb-tool[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(50%, 0);
+  transition-delay: 250ms;
+}
+.eb-tool:last-child[data-tip]:hover::after,
+.eb-tool:last-child[data-tip]:focus-visible::after {
+  transform: translate(0, 0);
+}
+@media (hover: none) {
+  .eb-tool[data-tip]::after { display: none; }
+}
+
+/* the hint above the tools while the board is empty, drawn like Excalidraw's own hints */
+.eb-dock-hint {
+  position: absolute;
+  right: 110px;
+  bottom: calc(100% + 6px);
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  pointer-events: none;
+  color: var(--eb-muted);
+  animation: eb-hint-in 0.6s ease 0.4s both;
+}
+.eb-dock-hint span {
+  font: 500 15px/1.3 var(--eb-serif);
+  text-align: right;
+  white-space: nowrap;
+  margin-bottom: 26px;
+}
+
+.eb-dock-hint svg {
+  width: 38px;
+  height: 42px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.eb-dock-hint[data-size='full'] .eb-hint-short,
+.eb-dock-hint[data-size='short'] .eb-hint-full {
+  display: none;
+}
+.eb-dock-hint[data-size='short'] {
+  right: 150px;
+}
+.eb-dock-hint[data-size='short'] span {
+  margin-bottom: 22px;
+}
+.eb-dock-hint[data-size='short'] svg {
+  width: 30px;
+  height: 34px;
+}
+@keyframes eb-hint-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- the bottom bars: secondary, so smaller than the drawing toolbar ---------- */
+.excalidraw .layer-ui__wrapper__footer-left,
+.excalidraw .layer-ui__wrapper__footer-right,
+.excalidraw .layer-ui__wrapper__footer-center {
+  --lg-button-size: 1.875rem;
+  --default-button-size: 1.875rem;
+  --lg-icon-size: 0.875rem;
+  --default-icon-size: 0.875rem;
+}
+.excalidraw .layer-ui__wrapper__footer-left .zoom-actions button,
+.excalidraw .layer-ui__wrapper__footer-left .reset-zoom-button {
+  font-size: 0.75rem !important;
+}
+.excalidraw .help-icon {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+.excalidraw .help-icon svg {
+  width: 14px;
+  height: 14px;
+}
+/* fingers need bigger targets than a mouse */
+.eb-dock-phone .eb-tools { height: 38px; padding: 3px; }
+.eb-dock-phone .eb-tool { height: 32px; min-width: 32px; }
+.eb-dock-phone .eb-tool-present { width: 32px; }
+
+/* ---------- Excalidraw's own sidebar (Library · Search), in the same language as Icons ---------- */
+.excalidraw .default-sidebar .sidebar__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 12px 12px 16px;
+  border-bottom: 1px solid var(--eb-line);
+}
+/* a title, like the Icons panel: seal + word, following the open tab */
+.excalidraw .default-sidebar .sidebar__header::before {
+  content: '庫';
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--eb-shu);
+  color: #fff8ef;
+  font: 700 13px/1 var(--eb-jp);
+}
+.excalidraw .default-sidebar .sidebar-triggers {
+  order: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.excalidraw .default-sidebar .sidebar-triggers::before {
+  content: 'Library';
+  flex: 1;
+  font: 600 22px/1 var(--eb-serif);
+  color: var(--eb-ink);
+}
+.excalidraw .default-sidebar:has(.layer-ui__search) .sidebar-triggers::before {
+  content: 'Search';
+}
+.excalidraw .default-sidebar:has(.layer-ui__search) .sidebar__header::before {
+  content: '探';
+}
+/* the two tabs: small quiet icons, the open one tinted, never a solid block */
+.excalidraw .default-sidebar .sidebar-tab-trigger {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--eb-muted);
+}
+.excalidraw .default-sidebar .sidebar-tab-trigger svg {
+  width: 15px;
+  height: 15px;
+}
+.excalidraw .default-sidebar .sidebar-tab-trigger:hover {
+  background: var(--eb-paper-3);
+  color: var(--eb-ink);
+}
+.excalidraw .default-sidebar .sidebar-tab-trigger[data-state='active'] {
+  background: var(--eb-shu-tint);
+  color: var(--eb-shu-2);
+}
+.excalidraw .default-sidebar .sidebar__header__buttons {
+  gap: 0;
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid var(--eb-line);
+}
+.excalidraw .default-sidebar .sidebar__header__buttons button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--eb-muted);
+}
+.excalidraw .default-sidebar .sidebar__header__buttons button:hover {
+  background: var(--eb-paper-3);
+  color: var(--eb-ink);
+}
+.excalidraw .default-sidebar .sidebar__header__buttons svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* the library: an empty state that says what to do, and the packs button as a pill */
+.excalidraw .layer-ui__library {
+  padding: 0 4px;
+}
+.excalidraw .library-menu-items__no-items {
+  margin-top: 8vh;
+  padding: 0 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.excalidraw .library-menu-items__no-items::before {
+  content: '';
+  width: 64px;
+  height: 64px;
+  margin-bottom: 6px;
   border-radius: 50%;
-  background: currentColor;
-  opacity: 0.25;
+  background: var(--eb-paper-3) center / 28px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c2361f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 7v14'/%3E%3Cpath d='M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z'/%3E%3C/svg%3E");
+  box-shadow: inset 0 0 0 1px var(--eb-line);
 }
-
-.eb-step-dots i.on {
-  opacity: 0.9;
+.excalidraw .library-menu-items__no-items__label {
+  font: 600 21px/1.2 var(--eb-serif) !important;
+  color: var(--eb-ink) !important;
+  margin: 0 !important;
+}
+.excalidraw .library-menu-items__no-items__hint {
+  max-width: 240px;
+  font: 13px/1.55 var(--eb-sans) !important;
+  color: var(--eb-muted) !important;
+}
+.excalidraw .library-menu-control-buttons {
+  justify-content: center;
+  gap: 6px;
+  padding: 16px 20px;
+}
+.excalidraw .library-menu-browse-button {
+  flex: 0 1 auto;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px !important;
+  border: 0;
+  background: var(--eb-shu) !important;
+  color: #fff8ef !important;
+  font: 600 13px/1 var(--eb-sans) !important;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  box-shadow: var(--eb-shadow);
+}
+.excalidraw .library-menu-browse-button:hover {
+  background: var(--eb-shu-2) !important;
+}
+.excalidraw .library-menu-dropdown-container .dropdown-menu-button {
+  width: 34px;
+  height: 34px;
+  box-shadow: none;
+}
+/* saved items: small paper tiles */
+.excalidraw .library-unit {
+  border-radius: 10px;
+  border: 1px solid var(--eb-line);
+  background: var(--eb-paper);
+}
+.excalidraw .library-unit--hover,
+.excalidraw .library-unit:hover {
+  border-color: var(--eb-shu);
+}
+.excalidraw .library-menu-items-container__header {
+  font: 600 12px var(--eb-sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--eb-muted);
+}
+/* search: the same round field as the Icons panel */
+.excalidraw .layer-ui__search {
+  padding: 12px 14px 0;
+}
+.excalidraw .layer-ui__search-inputWrapper {
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.excalidraw .layer-ui__search-inputWrapper .ExcTextField__input {
+  height: 38px;
+  border-radius: 999px !important;
+  border: 1px solid var(--eb-line) !important;
+  background: var(--eb-paper) !important;
+  box-shadow: none !important;
+}
+.excalidraw .layer-ui__search-inputWrapper .ExcTextField__input:focus-within {
+  border-color: var(--eb-shu) !important;
+  box-shadow: 0 0 0 3px var(--eb-shu-tint) !important;
+}
+.excalidraw .layer-ui__search-inputWrapper input {
+  font: 14px var(--eb-sans) !important;
+  color: var(--eb-ink) !important;
+}
+.excalidraw .layer-ui__search-count {
+  font: 12px var(--eb-sans);
+  color: var(--eb-muted);
 }

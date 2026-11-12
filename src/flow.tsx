@@ -1,17 +1,12 @@
 /**
- * Animated data flow: dots travel along every visible arrow, start → end
- * (both ways for two-headed arrows). Dashed arrows get slower, hollow dots,
- * which reads nicely as "async / optional".
+ * Canvas overlay: animated data-flow dots along arrows, plus step badges in
+ * edit mode. Drawn in scene coordinates inside a group that mirrors
+ * Excalidraw's camera: viewport = (scene + scroll) * zoom.
  */
-import {
-  atom,
-  getArrowInfo,
-  getColorValue,
-  useEditor,
-  useValue,
-  type TLArrowInfo,
-  type TLArrowShape,
-} from 'tldraw'
+import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types'
+import { createStore, sceneStore, useStore } from './state'
+import { getStep } from './steps'
+import { presentation } from './presentation'
 
 const STORAGE_KEY = 'explainboard:flow'
 function loadFlow() {
@@ -22,10 +17,11 @@ function loadFlow() {
   }
 }
 
-export const flowEnabled = atom('flow enabled', loadFlow())
+export const flowStore = createStore(loadFlow())
+
 export function toggleFlow() {
-  const value = !flowEnabled.get()
-  flowEnabled.set(value)
+  const value = !flowStore.get()
+  flowStore.set(value)
   try {
     localStorage.setItem(STORAGE_KEY, value ? 'on' : 'off')
   } catch {
@@ -33,30 +29,29 @@ export function toggleFlow() {
   }
 }
 
-const SPEED = 120 // page px per second
-const SPACING = 150 // page px between dots
+const SPEED = 120 // scene px per second
+const SPACING = 150 // scene px between dots
 
-function bodyPath(info: TLArrowInfo): { d: string; length: number } {
-  const s = info.start.point
-  const e = info.end.point
-  switch (info.type) {
-    case 'straight':
-      return { d: `M${s.x},${s.y} L${e.x},${e.y}`, length: info.length }
-    case 'arc': {
-      const { radius: r, largeArcFlag, sweepFlag, length } = info.bodyArc
-      return { d: `M${s.x},${s.y} A${r},${r} 0 ${largeArcFlag} ${sweepFlag} ${e.x},${e.y}`, length }
-    }
-    case 'elbow': {
-      const pts = info.route.points
-      return { d: pts.map((p, i) => `${i ? 'L' : 'M'}${p.x},${p.y}`).join(' '), length: info.route.distance }
-    }
+type P = [number, number]
+
+/** Catmull-Rom through the points → cubic Béziers (close to Excalidraw's curved arrows). */
+function curvePath(pts: P[]) {
+  let d = `M${pts[0][0]},${pts[0][1]}`
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[i + 2] ?? p2
+    const c1: P = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6]
+    const c2: P = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6]
+    d += ` C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${p2[0]},${p2[1]}`
   }
+  return d
 }
 
 interface FlowPath {
   id: string
   d: string
-  transform: string
   length: number
   color: string
   dashed: boolean
@@ -64,62 +59,74 @@ interface FlowPath {
   reverseOnly: boolean
 }
 
-export function FlowDots() {
-  const editor = useEditor()
-  const enabled = useValue('flow enabled', () => flowEnabled.get(), [])
+function arrowPaths(elements: readonly ExcalidrawElement[]): FlowPath[] {
+  const out: FlowPath[] = []
+  for (const el of elements) {
+    if (el.type !== 'arrow' || el.isDeleted || el.opacity === 0 || el.points.length < 2) continue
+    const pts = el.points.map(([px, py]) => [el.x + px, el.y + py] as P)
+    let length = 0
+    for (let i = 1; i < pts.length; i++) length += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+    if (length < 20) continue
+    const curved = !('elbowed' in el && el.elbowed) && el.roundness && pts.length > 2
+    out.push({
+      id: el.id,
+      d: curved ? curvePath(pts) : pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' '),
+      length,
+      color: el.strokeColor === 'transparent' ? '#231B14' : el.strokeColor,
+      dashed: el.strokeStyle !== 'solid',
+      twoWay: !!el.startArrowhead && !!el.endArrowhead,
+      reverseOnly: !!el.startArrowhead && !el.endArrowhead,
+    })
+  }
+  return out
+}
 
-  const paths = useValue(
-    'flow paths',
-    () => {
-      if (!flowEnabled.get()) return []
-      const colors = editor.getCurrentTheme().colors[editor.getColorMode()]
-      const out: FlowPath[] = []
-      for (const shape of editor.getCurrentPageShapes()) {
-        if (shape.type !== 'arrow' || editor.isShapeHidden(shape)) continue
-        const arrow = shape as TLArrowShape
-        const info = getArrowInfo(editor, arrow)
-        if (!info?.isValid) continue
-        const { d, length } = bodyPath(info)
-        if (!(length > 20)) continue
-        const m = editor.getShapePageTransform(arrow)
-        const startHead = arrow.props.arrowheadStart !== 'none'
-        const endHead = arrow.props.arrowheadEnd !== 'none'
-        out.push({
-          id: arrow.id,
-          d,
-          transform: `matrix(${m.a} ${m.b} ${m.c} ${m.d} ${m.e} ${m.f})`,
-          length,
-          color: getColorValue(colors, arrow.props.color, 'solid'),
-          dashed: arrow.props.dash === 'dashed' || arrow.props.dash === 'dotted',
-          twoWay: startHead && endHead,
-          reverseOnly: startHead && !endHead,
-        })
-      }
-      return out
-    },
-    [editor],
-  )
+export function CanvasOverlay() {
+  const { elements, appState } = useStore(sceneStore)
+  const flow = useStore(flowStore)
+  const presenting = useStore(presentation).active
+  if (!appState) return null
 
-  const camera = useValue('camera', () => editor.getCamera(), [editor])
+  const { scrollX, scrollY } = appState
+  const z = appState.zoom.value
+  const paths = flow ? arrowPaths(elements) : []
+  const badges =
+    presenting || z < 0.3
+      ? []
+      : elements.filter((e) => !e.isDeleted && getStep(e) > 0 && !(e.type === 'text' && e.containerId))
 
-  if (!enabled || paths.length === 0) return null
   return (
-    <svg className="eb-flow" aria-hidden="true">
-      <g transform={`scale(${camera.z}) translate(${camera.x} ${camera.y})`}>
-        {paths.map((p) => (
-          <g key={p.id} transform={p.transform}>
-            {p.twoWay ? (
-              <>
-                <Dots path={p} reverse={false} offset={0} />
-                <Dots path={p} reverse offset={0.5} />
-              </>
-            ) : (
-              <Dots path={p} reverse={p.reverseOnly} offset={0} />
+    <div className="eb-overlay" style={{ left: appState.offsetLeft, top: appState.offsetTop }}>
+      {paths.length > 0 && (
+        <svg className="eb-flow" aria-hidden="true">
+          <g transform={`scale(${z}) translate(${scrollX} ${scrollY})`}>
+            {paths.map((p) =>
+              p.twoWay ? (
+                <g key={p.id}>
+                  <Dots path={p} reverse={false} offset={0} />
+                  <Dots path={p} reverse offset={0.5} />
+                </g>
+              ) : (
+                <Dots key={p.id} path={p} reverse={p.reverseOnly} offset={0} />
+              ),
             )}
           </g>
-        ))}
-      </g>
-    </svg>
+        </svg>
+      )}
+      {badges.map((e) => {
+        const cx = e.type === 'arrow' ? e.x + e.width / 2 : e.x
+        const cy = e.type === 'arrow' ? e.y + e.height / 2 : e.y
+        return (
+          <div
+            key={e.id}
+            className="eb-step-badge"
+            style={{ transform: `translate(${(cx + scrollX) * z - 11}px, ${(cy + scrollY) * z - 11}px)` }}
+          >
+            {getStep(e)}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -133,7 +140,7 @@ function Dots({ path, reverse, offset }: { path: FlowPath; reverse: boolean; off
         <circle
           key={`${count}-${i}`}
           r={path.dashed ? 4.5 : 5.5}
-          fill={path.dashed ? 'var(--color-background, #fff)' : path.color}
+          fill={path.dashed ? 'var(--eb-paper)' : path.color}
           stroke={path.color}
           strokeWidth={path.dashed ? 2.5 : 0}
         >

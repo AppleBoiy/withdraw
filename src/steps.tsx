@@ -1,71 +1,75 @@
 /**
  * Step-by-step reveal.
  *
- * Any shape can carry `meta.step` (a number). Step 0 / no step = always visible.
- * While presenting, a slide starts with only step-0 shapes and each "next"
+ * Any element can carry `customData.step` (a number). Step 0 / none = always visible.
+ * While presenting, a slide starts with only step-0 elements and each "next"
  * reveals the next step before moving on to the following slide.
  */
-import {
-  useEditor,
-  useValue,
-  type Editor,
-  type TLArrowBinding,
-  type TLShape,
-  type TLShapeId,
-} from 'tldraw'
-import { presentation } from './presentation'
+import { CaptureUpdateAction, newElementWith } from '@excalidraw/excalidraw'
+import type { ExcalidrawElement } from '@excalidraw/excalidraw/element/types'
+import { getApi, sceneStore, useStore } from './state'
 
-export function getStep(shape: TLShape): number {
-  const s = shape.meta?.step
+export function getStep(el: ExcalidrawElement): number {
+  const s = el.customData?.step
   return typeof s === 'number' && s > 0 ? s : 0
 }
 
+/** Elements that belong to a frame (bound labels included). */
+export function frameChildren(elements: readonly ExcalidrawElement[], frameId: string) {
+  return elements.filter((e) => !e.isDeleted && e.frameId === frameId)
+}
+
 /** Sorted distinct steps used inside a slide (always starts with 0). */
-export function getSlideSteps(editor: Editor, frameId: TLShapeId): number[] {
+export function getSlideSteps(elements: readonly ExcalidrawElement[], frameId: string): number[] {
   const steps = new Set<number>([0])
-  for (const id of editor.getShapeAndDescendantIds([frameId])) {
-    const shape = editor.getShape(id)
-    if (shape) steps.add(getStep(shape))
-  }
+  for (const el of frameChildren(elements, frameId)) steps.add(getStep(el))
   return [...steps].sort((a, b) => a - b)
 }
 
-export function setStep(editor: Editor, ids: TLShapeId[], step: number) {
+function updateSteps(changes: Map<string, number>) {
+  const api = getApi()
+  api.updateScene({
+    elements: api
+      .getSceneElementsIncludingDeleted()
+      .map((el) =>
+        changes.has(el.id) ? newElementWith(el, { customData: { ...el.customData, step: changes.get(el.id)! } }) : el,
+      ),
+    captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+  })
+}
+
+export function setStep(ids: string[], step: number) {
   const value = Math.max(0, Math.round(step))
-  editor.markHistoryStoppingPoint('set reveal step')
-  editor.updateShapes(
-    ids
-      .map((id) => editor.getShape(id))
-      .filter((s): s is TLShape => !!s)
-      .map((s) => ({ id: s.id, type: s.type, meta: { ...s.meta, step: value } })),
-  )
+  updateSteps(new Map(ids.map((id) => [id, value])))
 }
 
 /**
  * Assign steps to a frame's contents by following its arrows: sources appear
  * first, then whatever they point to, one hop per step. Arrows appear together
- * with the shape they point at. Unconnected shapes stay at step 0.
+ * with the element they point at. Unconnected elements stay at step 0.
  */
-export function autoSteps(editor: Editor, frameId: TLShapeId) {
-  const children = editor.getSortedChildIdsForParent(frameId).map((id) => editor.getShape(id)!)
-  const arrows = children.filter((s) => s.type === 'arrow')
-  const nodes = children.filter((s) => s.type !== 'arrow')
+export function autoSteps(frameId: string) {
+  const children = frameChildren(getApi().getSceneElements(), frameId).filter(
+    (e) => !(e.type === 'text' && e.containerId),
+  )
+  const arrows = children.filter((e) => e.type === 'arrow')
+  const nodes = children.filter((e) => e.type !== 'arrow')
   const nodeIds = new Set(nodes.map((n) => n.id))
 
-  const edges: { arrow: TLShapeId; from: TLShapeId; to: TLShapeId }[] = []
-  for (const arrow of arrows) {
-    const bindings = editor.getBindingsFromShape<TLArrowBinding>(arrow, 'arrow')
-    const from = bindings.find((b) => b.props.terminal === 'start')?.toId
-    const to = bindings.find((b) => b.props.terminal === 'end')?.toId
-    if (from && to && nodeIds.has(from) && nodeIds.has(to)) edges.push({ arrow: arrow.id, from, to })
+  const edges: { arrow: string; from: string; to: string }[] = []
+  for (const a of arrows) {
+    if (a.type !== 'arrow') continue
+    const from = a.startBinding?.elementId
+    const to = a.endBinding?.elementId
+    if (from && to && nodeIds.has(from) && nodeIds.has(to)) edges.push({ arrow: a.id, from, to })
   }
 
-  const incoming = new Map<TLShapeId, number>()
+  const incoming = new Map<string, number>()
   for (const e of edges) incoming.set(e.to, (incoming.get(e.to) ?? 0) + 1)
   const connected = new Set(edges.flatMap((e) => [e.from, e.to]))
 
-  // BFS from sources (connected nodes with no incoming edges). Pure cycles fall back to step 0.
-  const layer = new Map<TLShapeId, number>()
+  // BFS from sources. Pure cycles fall back to the first node.
+  const layer = new Map<string, number>()
   const queue = [...connected].filter((id) => !incoming.get(id))
   if (queue.length === 0 && connected.size) queue.push([...connected][0])
   queue.forEach((id) => layer.set(id, 0))
@@ -79,25 +83,29 @@ export function autoSteps(editor: Editor, frameId: TLShapeId) {
     }
   }
 
-  const updates: { id: TLShapeId; step: number }[] = nodes.map((n) => ({ id: n.id, step: layer.get(n.id) ?? 0 }))
-  for (const e of edges) {
-    updates.push({ id: e.arrow, step: Math.max(layer.get(e.from) ?? 0, layer.get(e.to) ?? 0) })
+  // Icons/images sitting on top of a node follow that node.
+  const at = (id: string) => layer.get(id) ?? 0
+  const changes = new Map<string, number>()
+  for (const n of nodes) {
+    let step = at(n.id)
+    if (!connected.has(n.id)) {
+      const host = nodes.find(
+        (h) => h !== n && connected.has(h.id) && n.x >= h.x && n.y >= h.y && n.x + n.width <= h.x + h.width && n.y + n.height <= h.y + h.height,
+      )
+      if (host) step = at(host.id)
+    }
+    changes.set(n.id, step)
   }
-  for (const a of arrows) if (!edges.some((e) => e.arrow === a.id)) updates.push({ id: a.id, step: 0 })
-
-  editor.markHistoryStoppingPoint('auto steps')
-  editor.updateShapes(
-    updates.map(({ id, step }) => {
-      const s = editor.getShape(id)!
-      return { id, type: s.type, meta: { ...s.meta, step } }
-    }),
-  )
+  for (const e of edges) changes.set(e.arrow, Math.max(at(e.from), at(e.to)))
+  for (const a of arrows) if (!changes.has(a.id)) changes.set(a.id, 0)
+  updateSteps(changes)
 }
 
-/** Toolbar shown while shapes are selected: set / auto-assign reveal steps. */
+/** Toolbar shown while elements are selected: set / auto-assign reveal steps. */
 export function StepControls() {
-  const editor = useEditor()
-  const selection = useValue('selected shapes', () => editor.getSelectedShapes(), [editor])
+  const { elements, appState } = useStore(sceneStore)
+  const selectedIds = appState?.selectedElementIds ?? {}
+  const selection = elements.filter((e) => selectedIds[e.id] && !e.isDeleted)
   if (selection.length === 0) return null
 
   const steps = new Set(selection.map(getStep))
@@ -107,54 +115,19 @@ export function StepControls() {
 
   return (
     <div className="eb-steps" title="Reveal step while presenting (0 = shown immediately)">
-      <span>Step</span>
-      <button onClick={() => setStep(editor, ids, (current ?? 1) - 1)} disabled={current === 0}>
+      <span className="eb-steps-label">step</span>
+      <button onClick={() => setStep(ids, (current ?? 1) - 1)} disabled={current === 0} aria-label="Earlier step">
         −
       </button>
       <b>{current ?? '–'}</b>
-      <button onClick={() => setStep(editor, ids, (current ?? 0) + 1)}>+</button>
+      <button onClick={() => setStep(ids, (current ?? 0) + 1)} aria-label="Later step">
+        +
+      </button>
       {frames.length > 0 && (
-        <button
-          title="Reveal this frame's contents in arrow order"
-          onClick={() => frames.forEach((f) => autoSteps(editor, f.id))}
-        >
-          Auto
+        <button className="eb-steps-auto" title="Reveal this frame in arrow order" onClick={() => frames.forEach((f) => autoSteps(f.id))}>
+          auto
         </button>
       )}
     </div>
-  )
-}
-
-/** Small numbered badges on shapes that have a reveal step (edit mode only). */
-export function StepBadges() {
-  const editor = useEditor()
-  const badges = useValue(
-    'step badges',
-    () => {
-      if (presentation.get().active || editor.getZoomLevel() < 0.3) return []
-      const out: { id: string; x: number; y: number; step: number }[] = []
-      for (const shape of editor.getCurrentPageShapes()) {
-        const step = getStep(shape)
-        if (!step) continue
-        const bounds = editor.getShapePageBounds(shape)
-        if (!bounds) continue
-        // Arrows: badge at the middle; other shapes: top-left corner.
-        const anchor = shape.type === 'arrow' ? bounds.center : bounds.point
-        const p = editor.pageToViewport(anchor)
-        out.push({ id: shape.id, x: p.x, y: p.y, step })
-      }
-      return out
-    },
-    [editor],
-  )
-
-  return (
-    <>
-      {badges.map((b) => (
-        <div key={b.id} className="eb-step-badge" style={{ transform: `translate(${b.x - 10}px, ${b.y - 10}px)` }}>
-          {b.step}
-        </div>
-      ))}
-    </>
   )
 }
