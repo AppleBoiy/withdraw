@@ -11,6 +11,7 @@
  *   LLM -> Postgres: store triples edge with a label
  *   API <-> Cache                  bidirectional edge
  *   Worker ..> Metrics: async      dashed edge
+ *   ---                            next reveal step: what follows appears on the next click
  *   # comment
  */
 import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js'
@@ -28,6 +29,10 @@ interface NodeDef {
   label: string
   geo: Geo
   color: TLDefaultColorStyle
+  /** Step of the first edge that uses this node (undefined until one does). */
+  step?: number
+  /** Step at which the node was first mentioned at all. */
+  declStep: number
 }
 
 interface EdgeDef {
@@ -36,10 +41,13 @@ interface EdgeDef {
   label: string
   bidirectional: boolean
   dashed: boolean
+  step: number
 }
 
 export interface Section {
   title: string
+  /** Current reveal step while parsing. */
+  step: number
   direction: 'RIGHT' | 'DOWN'
   nodes: Map<string, NodeDef>
   edges: EdgeDef[]
@@ -74,13 +82,13 @@ const COLORS = new Set<TLDefaultColorStyle>([
 const ARROW = /\s*(<->|\.\.>|->)\s*/
 
 function newSection(title: string): Section {
-  return { title, direction: 'RIGHT', nodes: new Map(), edges: [] }
+  return { title, step: 0, direction: 'RIGHT', nodes: new Map(), edges: [] }
 }
 
 function ensureNode(section: Section, name: string): NodeDef {
   let node = section.nodes.get(name)
   if (!node) {
-    node = { label: name, ...KINDS.service }
+    node = { label: name, ...KINDS.service, declStep: section.step }
     section.nodes.set(name, node)
   }
   return node
@@ -120,6 +128,11 @@ export function parseDiagram(source: string): Section[] {
       continue
     }
 
+    if (/^-{3,}$/.test(line)) {
+      section().step++
+      continue
+    }
+
     const dir = line.match(/^direction:\s*(right|down|lr|td)\s*$/i)
     if (dir) {
       section().direction = /right|lr/i.test(dir[1]) ? 'RIGHT' : 'DOWN'
@@ -141,14 +154,15 @@ export function parseDiagram(source: string): Section[] {
         const op = parts[i + 1]
         const to = parts[i + 2].trim()
         if (!from || !to) continue
-        ensureNode(section(), from)
-        ensureNode(section(), to)
-        section().edges.push({
+        const sec = section()
+        for (const n of [ensureNode(sec, from), ensureNode(sec, to)]) n.step ??= sec.step
+        sec.edges.push({
           from,
           to,
           label: i + 3 === parts.length ? label : '',
           bidirectional: op === '<->',
           dashed: op === '..>',
+          step: sec.step,
         })
       }
       continue
@@ -237,7 +251,7 @@ export async function insertDiagram(editor: Editor, source: string): Promise<num
         parentId: frameId,
         x,
         y,
-        meta: { explainName: name },
+        meta: { explainName: name, step: def.step ?? def.declStep },
         props: {
           geo: def.geo,
           w: child.width,
@@ -261,6 +275,7 @@ export async function insertDiagram(editor: Editor, source: string): Promise<num
         id: arrowId,
         type: 'arrow',
         parentId: frameId,
+        meta: { step: edge.step },
         x: a.x,
         y: a.y,
         props: {

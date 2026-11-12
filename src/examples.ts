@@ -3,17 +3,23 @@ export const EXAMPLES: Record<string, string> = {
 Raw documents: doc
 Chunks: data
 Entity + relation extractor: llm
-Raw documents -> Cleaner -> Chunker -> Chunks
-Chunks -> Entity + relation extractor: prompt per chunk
-Entity + relation extractor -> Triples: (subject, relation, object)
 Triples: data
+Raw documents -> Cleaner
+---
+Cleaner -> Chunker -> Chunks
+---
+Chunks -> Entity + relation extractor: prompt per chunk
+---
+Entity + relation extractor -> Triples: (subject, relation, object)
 
 ## 2. Cleaning the graph
 direction: right
 Triples: data
 Graph DB: db
 Triples -> Entity resolution: merge aliases
+---
 Entity resolution -> Schema validation
+---
 Schema validation -> Graph DB: upsert
 Schema validation ..> Review queue: low confidence
 Review queue: queue
@@ -23,7 +29,9 @@ Marie Curie: entity
 Polonium: entity
 Pierre Curie: entity
 Marie Curie -> Polonium: discovered
+---
 Marie Curie -> Pierre Curie: married to
+---
 Pierre Curie -> Polonium: co-discovered
 `,
 
@@ -35,9 +43,12 @@ Vector DB: db
 Postgres: db
 User -> Web app -> API gateway
 API gateway -> Chat service: /chat
+---
 Chat service -> Retriever: query
 Retriever -> Vector DB: top-k
+---
 Chat service -> LLM: prompt + context
+---
 Chat service -> Postgres: history
 Chat service ..> Event queue: analytics
 Event queue: queue

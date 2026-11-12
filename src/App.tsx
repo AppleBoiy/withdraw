@@ -2,14 +2,17 @@ import { useState } from 'react'
 import { Tldraw, useEditor, useValue, type TLComponents } from 'tldraw'
 import { insertDiagram } from './diagram'
 import { EXAMPLES } from './examples'
-import { PresentationControls, presentation, startPresentation } from './presentation'
+import { PresentationControls, getShapeVisibility, presentation, startPresentation } from './presentation'
+import { FlowDots, flowEnabled, toggleFlow } from './flow'
+import { StepBadges, StepControls } from './steps'
 
 const SYNTAX_HELP = `## Frame title        → new frame (slide)
 direction: down        → layout (right | down)
 A -> B -> C            → edges (chain)
 A -> B: label          → labelled edge
 A <-> B   A ..> B      → two-way / dashed
-Name: db | queue | llm | user | external | decision | data | entity [+ color]`
+Name: db | queue | llm | user | external | decision | data | entity [+ color]
+---                    → next reveal step (what follows appears on the next click)`
 
 function TopRightPanel() {
   const editor = useEditor()
@@ -17,6 +20,7 @@ function TopRightPanel() {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState(EXAMPLES['Knowledge-graph extraction'])
   const [error, setError] = useState('')
+  const flow = useValue('flow', () => flowEnabled.get(), [])
 
   if (presenting) return null
 
@@ -34,6 +38,10 @@ function TopRightPanel() {
   return (
     <>
       <div className="eb-panel">
+        <StepControls />
+        <button className={flow ? 'eb-on' : ''} onClick={toggleFlow} title="Animated data flow along arrows">
+          Flow
+        </button>
         <button onClick={() => setOpen(true)}>Text → diagram</button>
         <button className="eb-primary" onClick={() => startPresentation(editor)}>
           ▶ Present
@@ -71,9 +79,19 @@ function TopRightPanel() {
   )
 }
 
+function InFront() {
+  return (
+    <>
+      <FlowDots />
+      <StepBadges />
+      <PresentationControls />
+    </>
+  )
+}
+
 const components: TLComponents = {
   SharePanel: TopRightPanel,
-  InFrontOfTheCanvas: PresentationControls,
+  InFrontOfTheCanvas: InFront,
 }
 
 export default function App() {
@@ -82,6 +100,11 @@ export default function App() {
       <Tldraw
         persistenceKey="explainboard"
         components={components}
+        getShapeVisibility={getShapeVisibility}
+        // Presenting turns on focus mode, which persists: don't come back to a board with no toolbar.
+        onMount={(editor) => {
+          editor.updateInstanceState({ isFocusMode: false })
+        }}
         licenseKey={import.meta.env.VITE_TLDRAW_LICENSE_KEY}
       />
     </div>
