@@ -5,10 +5,11 @@
  * On phones it floats above Excalidraw's mobile footer.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { flowStore, toggleFlow } from './flow'
+import { badgesStore, flowStore, toggleBadges, toggleFlow } from './flow'
+import { getStep } from './steps'
 import { ICON_SIDEBAR } from './IconGallery'
 import { startPresentation } from './presentation'
-import { getApi, uiStore, useStore } from './state'
+import { getApi, sceneStore, uiStore, useStore } from './state'
 import { StepControls } from './steps'
 
 /** Lucide icons (ISC), inlined so every browser draws the same thing. */
@@ -56,6 +57,16 @@ const ICONS = {
       <circle cx="12" cy="12" r="1.6" fill="currentColor" />
     </Icon>
   ),
+  steps: (
+    <Icon>
+      <path d="M10 6h11" />
+      <path d="M10 12h11" />
+      <path d="M10 18h11" />
+      <path d="M4 6h1v4" />
+      <path d="M4 10h2" />
+      <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" />
+    </Icon>
+  ),
   play: (
     <Icon filled>
       <path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" />
@@ -84,12 +95,24 @@ type Tool = { key: string; icon: ReactNode; name: string; does: string; onClick:
 
 export function Dock({ phone, empty }: { phone: boolean; empty: boolean }) {
   const flow = useStore(flowStore)
+  const badges = useStore(badgesStore)
+  const hasSteps = useStore(sceneStore).elements.some((e) => !e.isDeleted && getStep(e) > 0)
   const tools: Tool[] = [
     { key: 'icons', icon: ICONS.shapes, name: 'Icons', does: '5,000 system & brand icons', onClick: () => getApi().toggleSidebar({ name: ICON_SIDEBAR }) },
     { key: 'diagram', icon: ICONS.workflow, name: 'Text → diagram', does: 'write a few lines, get a laid-out diagram', onClick: () => uiStore.set({ diagramOpen: true }) },
     { key: 'library', icon: ICONS.book, name: 'Library', does: 'AWS, GCP, K8s and other shape packs', onClick: () => getApi().toggleSidebar({ name: 'default', tab: 'library' }) },
     { key: 'flow', icon: ICONS.flow, name: flow ? 'Flow is on' : 'Flow', does: 'animate data along the arrows', onClick: toggleFlow, on: flow },
   ]
+  // only once something has a reveal step: show or hide the red step numbers on the canvas
+  if (hasSteps)
+    tools.push({
+      key: 'steps',
+      icon: ICONS.steps,
+      name: badges ? 'Step numbers: shown' : 'Step numbers: hidden',
+      does: badges ? 'the red numbers show the reveal order · click to hide' : 'selected shapes still show theirs · click to show all',
+      onClick: toggleBadges,
+      on: badges,
+    })
   // the hint shows whenever it fits: in full, or short beside the tools, or not at all if even that
   // would cover the welcome screen's title and menu
   const hintRef = useRef<HTMLDivElement>(null)
@@ -140,7 +163,7 @@ export function Dock({ phone, empty }: { phone: boolean; empty: boolean }) {
       )}
       <div className="eb-tools" role="toolbar" aria-label="Explain tools">
         {tools.map((t) => (
-          <button key={t.key} className={t.on ? 'eb-tool eb-on' : 'eb-tool'} onClick={t.onClick} aria-pressed={t.key === 'flow' ? !!t.on : undefined} {...tip(t)}>
+          <button key={t.key} className={t.on ? 'eb-tool eb-on' : 'eb-tool'} onClick={t.onClick} aria-pressed={t.key === 'flow' || t.key === 'steps' ? !!t.on : undefined} {...tip(t)}>
             {t.icon}
           </button>
         ))}

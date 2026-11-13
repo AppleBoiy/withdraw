@@ -29,6 +29,90 @@ export function toggleFlow() {
   }
 }
 
+/** Step numbers on the canvas (the reveal order). They can be hidden; the selected shapes keep theirs. */
+const BADGES_KEY = 'explainboard:step-numbers'
+export const badgesStore = createStore((() => {
+  try {
+    return localStorage.getItem(BADGES_KEY) !== 'off'
+  } catch {
+    return true
+  }
+})())
+export function toggleBadges() {
+  const value = !badgesStore.get()
+  badgesStore.set(value)
+  try {
+    localStorage.setItem(BADGES_KEY, value ? 'on' : 'off')
+  } catch {
+    /* storage unavailable: keep in memory only */
+  }
+}
+
+/**
+ * Where each step number goes. One number per thing you see: an icon or label inside a shape that
+ * appears with it shares the shape's number. Each number sits on the outline of what it belongs to
+ * (the upper-left of a shape, a third of the way along an arrow), never on the empty corner of a
+ * bounding box, so it can't be mistaken for a neighbour's.
+ */
+type Badge = { el: ExcalidrawElement; x: number; y: number }
+const SHAPES = new Set(['rectangle', 'ellipse', 'diamond', 'frame', 'magicframe', 'embeddable', 'iframe'])
+
+function along(el: ExcalidrawElement & { points?: readonly (readonly [number, number])[] }, t: number): [number, number] {
+  const pts = el.points ?? []
+  if (pts.length < 2) return [el.x + el.width / 2, el.y + el.height / 2]
+  const seg: number[] = []
+  let total = 0
+  for (let i = 1; i < pts.length; i++) {
+    const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+    seg.push(d)
+    total += d
+  }
+  let want = total * t
+  for (let i = 0; i < seg.length; i++) {
+    if (want <= seg[i] || i === seg.length - 1) {
+      const k = seg[i] ? want / seg[i] : 0
+      return [el.x + pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k, el.y + pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k]
+    }
+    want -= seg[i]
+  }
+  return [el.x, el.y]
+}
+
+function anchor(el: ExcalidrawElement): [number, number] {
+  const { x, y, width: w, height: h } = el
+  switch (el.type) {
+    case 'arrow':
+    case 'line':
+      return along(el as never, 0.3)
+    case 'ellipse':
+      return [x + w / 2 - (w / 2) * Math.SQRT1_2, y + h / 2 - (h / 2) * Math.SQRT1_2]
+    case 'diamond':
+      return [x + w / 4, y + h / 4]
+    default:
+      return [x + 6, y + 6]
+  }
+}
+
+const inside = (a: ExcalidrawElement, b: ExcalidrawElement) => {
+  const cx = a.x + a.width / 2, cy = a.y + a.height / 2
+  return cx > b.x && cx < b.x + b.width && cy > b.y && cy < b.y + b.height && a.width * a.height < b.width * b.height
+}
+
+export function stepBadges(elements: readonly ExcalidrawElement[]): Badge[] {
+  const stepped = elements.filter((e) => !e.isDeleted && getStep(e) > 0 && !(e.type === 'text' && e.containerId))
+  const shapes = stepped.filter((e) => SHAPES.has(e.type))
+  return stepped
+    .filter((e) => {
+      if (SHAPES.has(e.type) || e.type === 'arrow' || e.type === 'line') return true
+      // an icon, image or free text sitting inside a shape that appears at the same step
+      return !shapes.some((s) => getStep(s) === getStep(e) && inside(e, s))
+    })
+    .map((el) => {
+      const [x, y] = anchor(el)
+      return { el, x, y }
+    })
+}
+
 const SPEED = 120 // scene px per second
 const SPACING = 150 // scene px between dots
 
@@ -85,7 +169,9 @@ export function CanvasOverlay() {
   const { elements, appState } = useStore(sceneStore)
   const flow = useStore(flowStore)
   const presenting = useStore(presentation).active
+  const showBadges = useStore(badgesStore)
   if (!appState) return null
+  const selected = appState.selectedElementIds ?? {}
 
   const { scrollX, scrollY } = appState
   const z = appState.zoom.value
@@ -93,7 +179,7 @@ export function CanvasOverlay() {
   const badges =
     presenting || z < 0.3
       ? []
-      : elements.filter((e) => !e.isDeleted && getStep(e) > 0 && !(e.type === 'text' && e.containerId))
+      : stepBadges(elements).filter((b) => showBadges || selected[b.el.id])
 
   return (
     <div className="eb-overlay" style={{ left: appState.offsetLeft, top: appState.offsetTop }}>
@@ -113,19 +199,16 @@ export function CanvasOverlay() {
           </g>
         </svg>
       )}
-      {badges.map((e) => {
-        const cx = e.type === 'arrow' ? e.x + e.width / 2 : e.x
-        const cy = e.type === 'arrow' ? e.y + e.height / 2 : e.y
-        return (
-          <div
-            key={e.id}
-            className="eb-step-badge"
-            style={{ transform: `translate(${(cx + scrollX) * z - 11}px, ${(cy + scrollY) * z - 11}px)` }}
-          >
-            {getStep(e)}
-          </div>
-        )
-      })}
+      {badges.map(({ el, x, y }) => (
+        <div
+          key={el.id}
+          className="eb-step-badge"
+          title={`Appears at step ${getStep(el)} when presenting`}
+          style={{ transform: `translate(${(x + scrollX) * z - 11}px, ${(y + scrollY) * z - 11}px)` }}
+        >
+          {getStep(el)}
+        </div>
+      ))}
     </div>
   )
 }
