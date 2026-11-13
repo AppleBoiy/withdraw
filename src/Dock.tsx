@@ -99,7 +99,7 @@ export function Dock({ phone, empty }: { phone: boolean; empty: boolean }) {
   const hasSteps = useStore(sceneStore).elements.some((e) => !e.isDeleted && getStep(e) > 0)
   const tools: Tool[] = [
     { key: 'icons', icon: ICONS.shapes, name: 'Icons', does: '5,000 system & brand icons', onClick: () => getApi().toggleSidebar({ name: ICON_SIDEBAR }) },
-    { key: 'diagram', icon: ICONS.workflow, name: 'Text → diagram', does: 'write a few lines, get a laid-out diagram', onClick: () => uiStore.set({ diagramOpen: true }) },
+    { key: 'diagram', icon: ICONS.workflow, name: 'Text → diagram', does: 'write a few lines, get a laid-out diagram', onClick: () => uiStore.set((u) => ({ ...u, diagramOpen: true })) },
     { key: 'library', icon: ICONS.book, name: 'Library', does: 'AWS, GCP, K8s and other shape packs', onClick: () => getApi().toggleSidebar({ name: 'default', tab: 'library' }) },
     { key: 'flow', icon: ICONS.flow, name: flow ? 'Flow is on' : 'Flow', does: 'animate data along the arrows', onClick: toggleFlow, on: flow },
   ]

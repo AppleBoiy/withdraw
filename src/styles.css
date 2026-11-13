@@ -1354,3 +1354,20 @@ body,
   font: 12px var(--eb-sans);
   color: var(--eb-muted);
 }
+
+/* ── where the board stands: a quiet note at the bottom left, above the zoom ── */
+.eb-savenote {
+  position: fixed; left: 16px; bottom: 62px; z-index: 4; pointer-events: none;
+  font: 400 12px/1 var(--eb-sans); color: var(--eb-faint); letter-spacing: .01em;
+  transition: opacity .4s ease, color .3s ease;
+}
+.eb-savenote-pending, .eb-savenote-saving { color: var(--eb-muted); }
+.eb-savenote-error { color: var(--eb-shu); }
+@media (max-width: 720px) { .eb-savenote { bottom: 74px; } }
+
+/* ── earlier versions ── */
+.eb-versions { max-width: 560px; }
+.eb-versions-list { padding: 4px 22px 22px; max-height: 60vh; overflow: auto; }
+.eb-versions-list ul { list-style: none; margin: 0; padding: 0; }
+.eb-versions-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--eb-line); font: 400 14px var(--eb-sans); color: var(--eb-ink-2); }
+.eb-versions-list li b { font-weight: 500; color: var(--eb-ink); }
