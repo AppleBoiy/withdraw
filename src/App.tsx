@@ -8,7 +8,7 @@ import { CanvasOverlay } from './flow'
 import { Dock, DOCK_ICONS, usePhoneLayout } from './Dock'
 import { Mark } from './Mark'
 import { ICON_SIDEBAR, IconGallery } from './IconGallery'
-import { libraryAdapter, loadScene, saveScene } from './persist'
+import { attachApi, libraryAdapter, listSnapshots, loadScene, restoreSnapshot, saveScene, saveStatus } from './persist'
 import { PresentBar, presentation, startPresentation } from './presentation'
 import { apiStore, getApi, pushScene, sceneStore, uiStore, useStore } from './state'
 
@@ -35,7 +35,7 @@ function DiagramDialog() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   if (!diagramOpen) return null
-  const close = () => uiStore.set({ diagramOpen: false })
+  const close = () => uiStore.set((u) => ({ ...u, diagramOpen: false }))
 
   const insert = async () => {
     setBusy(true)
@@ -120,6 +120,49 @@ function DiagramDialog() {
   )
 }
 
+/** a quiet note of where the board stands: kept in this browser, or about to be */
+function SaveNote() {
+  const { state, at } = useStore(saveStatus)
+  if (state === 'idle') return null
+  const time = new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const text = state === 'error' ? 'Not saved: this browser is not keeping the board' : state === 'saved' ? `Saved in this browser · ${time}` : 'Saving…'
+  return <div className={`eb-savenote eb-savenote-${state}`} role="status" aria-live="polite">{text}</div>
+}
+
+/** the board as it was: a snapshot at most every ten minutes of work, the last twenty kept */
+function VersionsDialog() {
+  const { versionsOpen } = useStore(uiStore)
+  const [list, setList] = useState<{ key: string; savedAt: number; count: number }[] | null>(null)
+  useEffect(() => { if (versionsOpen) { setList(null); void listSnapshots().then(setList) } }, [versionsOpen])
+  if (!versionsOpen) return null
+  const close = () => uiStore.set((u) => ({ ...u, versionsOpen: false }))
+  return (
+    <div className="eb-modal-backdrop" onPointerDown={close}>
+      <div className="eb-modal eb-versions" role="dialog" aria-modal="true" aria-labelledby="eb-versions-title" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === 'Escape') close() }}>
+        <header className="eb-modal-head">
+          <div>
+            <h2 id="eb-versions-title">Earlier versions</h2>
+            <p>Kept in this browser, at most one every ten minutes of work. Restoring is a change like any other: undo takes it back.</p>
+          </div>
+          <button className="eb-modal-x" onClick={close} aria-label="Close">×</button>
+        </header>
+        <div className="eb-versions-list">
+          {list === null ? <p className="eb-keys">Looking…</p> : list.length === 0 ? <p className="eb-keys">No earlier versions yet. The first is kept after ten minutes of drawing.</p> : (
+            <ul>
+              {list.map((v) => (
+                <li key={v.key}>
+                  <span><b>{new Date(v.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</b> · {v.count} {v.count === 1 ? 'shape' : 'shapes'}</span>
+                  <button className="eb-btn" onClick={async () => { if (await restoreSnapshot(v.key)) close() }}>Restore</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null)
   const presenting = useStore(presentation).active
@@ -132,6 +175,7 @@ export default function App() {
 
   useEffect(() => {
     apiStore.set(api)
+    attachApi(api)
     if (import.meta.env.DEV) (window as unknown as { __eb: unknown }).__eb = api
   }, [api])
 
@@ -162,9 +206,10 @@ export default function App() {
           <MainMenu.DefaultItems.Export />
           <MainMenu.DefaultItems.SaveAsImage />
           <MainMenu.Separator />
-          <MainMenu.Item onSelect={() => uiStore.set({ diagramOpen: true })}>Text → diagram</MainMenu.Item>
+          <MainMenu.Item onSelect={() => uiStore.set((u) => ({ ...u, diagramOpen: true }))}>Text → diagram</MainMenu.Item>
           <MainMenu.Item onSelect={() => getApi().toggleSidebar({ name: ICON_SIDEBAR, force: true })}>Icon gallery</MainMenu.Item>
           <MainMenu.Item onSelect={startPresentation}>Present</MainMenu.Item>
+          <MainMenu.Item onSelect={() => uiStore.set((u) => ({ ...u, versionsOpen: true }))}>Earlier versions…</MainMenu.Item>
           <MainMenu.Separator />
           <MainMenu.DefaultItems.CommandPalette />
           <MainMenu.DefaultItems.SearchMenu />
@@ -182,7 +227,7 @@ export default function App() {
               <p>sketch it · reveal it step by step · present it</p>
             </div>
             <WelcomeScreen.Center.Menu>
-              <WelcomeScreen.Center.MenuItem icon={DOCK_ICONS.workflow} onSelect={() => uiStore.set({ diagramOpen: true })}>
+              <WelcomeScreen.Center.MenuItem icon={DOCK_ICONS.workflow} onSelect={() => uiStore.set((u) => ({ ...u, diagramOpen: true }))}>
                 Text → diagram
               </WelcomeScreen.Center.MenuItem>
               <WelcomeScreen.Center.MenuItem icon={DOCK_ICONS.shapes} onSelect={() => getApi().toggleSidebar({ name: ICON_SIDEBAR, force: true })}>
@@ -201,6 +246,8 @@ export default function App() {
       {!presenting && <Dock phone={phone} empty={empty} />}
       <PresentBar />
       <DiagramDialog />
+      <VersionsDialog />
+      {!presenting && <SaveNote />}
       <div className="eb-grain" aria-hidden="true" />
     </div>
   )

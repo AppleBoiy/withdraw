@@ -52,7 +52,7 @@ export function pushScene(elements: readonly ExcalidrawElement[], appState: AppS
   pending = { elements, appState }
 }
 
-export const uiStore = createStore({ diagramOpen: false })
+export const uiStore = createStore({ diagramOpen: false, versionsOpen: false })
 
 export function newId(prefix = 'eb') {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`

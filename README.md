@@ -20,6 +20,16 @@ npm run dev        # copies Excalidraw's fonts into public/, then http://localho
 - **Step-by-step reveal** — select elements and use **step − / +**; red badges show the step. Select a frame and press **auto** to reveal its contents in arrow order. While presenting, `→` reveals the next step before moving to the next slide.
 - **Animated data flow** — **≋ flow** sends dots along every visible arrow (both ways for two-headed arrows; hollow and slower for dashed/async ones).
 
+## How a board is kept
+
+Boards live in this browser (IndexedDB), local-first, the way Excalidraw and tldraw keep local work:
+
+- **Saved when something changes.** A write is scheduled only when an element's version or the view changes: 300 ms after the last change, and at least every 1.5 s while you keep drawing. A note at the bottom left says when it was last saved.
+- **Nothing lost on refresh.** When the page is hidden or closed the board is written at once, with a synchronous copy in localStorage in case that write can't finish; on load the newer copy wins. Nothing is written until the stored board is back on the canvas, so an empty first render can't replace it.
+- **Tabs merge, never overwrite.** Each element carries a version; a write keeps, element by element, the newer one (deletions are kept for a week so they win too). Other open tabs pick up a save at once (BroadcastChannel) and when they come back into view.
+- **Earlier versions.** A snapshot at most every ten minutes of work, the last twenty kept: menu → *Earlier versions…*. Restoring can be undone.
+- Pictures are stored once each, and the browser is asked to keep the storage (`navigator.storage.persist()`). Export (`.excalidraw`) is still the way to move a board to another browser.
+
 ## Diagram syntax
 
 ```
